@@ -1,0 +1,82 @@
+services:
+  caddy:
+    image: lucaslorentz/caddy-docker-proxy:2.9.1
+    restart: unless-stopped
+    # Map HTTP/HTTPS — change to 8080/8443 locally if 80/443 are busy.
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    environment:
+      # Optional: disable admin endpoint
+      - CADDY_ADMIN=disabled
+    labels:
+      # Global ACME contact email for Let's Encrypt
+      caddy.email: ${LETSENCRYPT_EMAIL}
+      # Tell caddy which network to use for service discovery
+      caddy.ingress.network: web
+    networks:
+      - web
+    # Soft cap for memory (works on classic Compose)
+    mem_limit: 64m
+
+  db:
+    image: mariadb:11
+    restart: unless-stopped
+    environment:
+      MARIADB_DATABASE: ${MYSQL_DATABASE}
+      MARIADB_USER: ${MYSQL_USER}
+      MARIADB_PASSWORD: ${MYSQL_PASSWORD}
+      MARIADB_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+    # Trim MariaDB memory footprint
+    command: >
+      --innodb_buffer_pool_size=64M
+      --innodb_log_buffer_size=16M
+      --key_buffer_size=8M
+      --max_connections=40
+      --table_open_cache=200
+      --tmp_table_size=16M
+      --performance_schema=OFF
+      --query_cache_size=0
+    volumes:
+      - ./dbdata:/var/lib/mysql
+    networks:
+      - internal
+    mem_limit: 192m
+
+  wordpress:
+    image: wordpress:php8.3-apache
+    restart: unless-stopped
+    depends_on:
+      - db
+    environment:
+      WORDPRESS_DB_HOST: db:3306
+      WORDPRESS_DB_USER: ${MYSQL_USER}
+      WORDPRESS_DB_PASSWORD: ${MYSQL_PASSWORD}
+      WORDPRESS_DB_NAME: ${MYSQL_DATABASE}
+      # Optional: tighten PHP memory usage (WordPress uses this if defined)
+      WORDPRESS_CONFIG_EXTRA: |
+        define('WP_MEMORY_LIMIT', '96M');
+        define('WP_MAX_MEMORY_LIMIT', '128M');
+    volumes:
+      - ./wp:/var/www/html
+    # Route via Caddy with automatic HTTPS for your DOMAIN
+    labels:
+      caddy: ${DOMAIN}
+      caddy.reverse_proxy: "{{upstreams 80}}"
+      caddy.encode: gzip zstd
+    networks:
+      - web
+      - internal
+    mem_limit: 256m
+
+networks:
+  web:
+  internal:
+
+volumes:
+  caddy_data:
+  caddy_config:

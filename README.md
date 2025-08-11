@@ -77,7 +77,7 @@ Tuned to stay around **≤512 MB RAM**. Fork it and ship simple brochure/blog si
 4. Open ports and start:
     ```bash
     # If you use UFW:
-    ufw allow 80; ufw allow 443; ufw --force enable
+    ufw allow 22; ufw allow 80; ufw allow 443; ufw --force enable
 
     docker compose up -d
     ```

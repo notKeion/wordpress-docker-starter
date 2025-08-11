@@ -1,0 +1,6 @@
+# Keep the directories, ignore their contents
+wp/*
+!wp/.gitkeep
+dbdata/*
+!dbdata/.gitkeep
+.env
